@@ -1,1 +1,155 @@
-Compliance Helper for MSME GST & E-InvoicingAn AI-driven Proof-of-Concept (PoC) to automate GST reconciliation and compliance for Micro, Small, and Medium Enterprises.🚀 Project OverviewThis system is designed to bridge the gap between manual invoice handling and complex enterprise ERPs. Developed as part of the AI Application Development course (6th Semester, Computer Science), this tool assists MSMEs and Chartered Accountants (CAs) by automating data extraction and flagging compliance risks.The ProblemMSMEs in India often struggle with GST compliance due to manual invoice handling and a lack of affordable, easy-to-use reconciliation tools. While GST systems are mature, many businesses still rely on inconsistent PDFs or physical images, leading to frequent mismatches.✨ Key Features (MVP Scope)Our 6-week roadmap focuses on delivering a functional "Digital Accountant" experience:Intelligent Extraction: OCR-based extraction of GSTIN, invoice numbers, dates, taxable values, and tax amounts from images or PDFs.Automated Validation: Cross-referencing extracted fields against standard GST rules to ensure accuracy.Reconciliation Logic: Smart matching between purchase and sales invoices to identify discrepancies.Compliance Dashboard: A visual interface to flag mismatches, missing invoices, and potential risks.One-Click Reporting: Exportable reconciliation reports in CSV or Excel formats for CAs and business owners.🛠️ Tech StackComponentTechnologyFrontendReact or Streamlit BackendFastAPI or Flask OCR EngineTesseract OCR or Cloud-based OCR (Azure/AWS/Google) AI/MLRule-based validation + ML-based field classification DatabaseSQLite or PostgreSQL 📅 Execution RoadmapWeekFocus AreaWeek 1Understand GST workflow & collect sample invoices.Week 2Implement invoice upload and OCR extraction logic.Week 3Build field validation and rule-based compliance checks.Week 4Develop reconciliation logic and the user dashboard.Week 5Testing with varied invoice formats and handling edge cases.Week 6Final demo, documentation, and evaluation.🛡️ Ethical Considerations & Data PrivacyTo ensure responsible AI development, we adhere to the following principles:Synthetic Data: We primarily use anonymized or synthetic invoice data during development.Privacy: Sensitive financial data is not stored beyond immediate PoC requirements.Transparency: The system clearly indicates the confidence levels of its AI-extracted values.Disclaimer: This tool is for compliance assistance only and does not constitute professional legal or tax advice.👥 The TeamCourse: AI Application Development Team Size: 6 Members Project Duration: 6 Weeks 🎯 Demo ScenarioThe final deliverable will demonstrate a user uploading a batch of GST invoices, showing the system automatically extracting data, highlighting matched vs. mismatched entries, and generating a final reconciliation report.
+#  MSME GST & E-Invoicing Compliance Helper
+
+<p align="center">
+  <b>AI-powered GST compliance & invoice reconciliation system for MSMEs</b><br/>
+  Automate invoice extraction, validation, and mismatch detection ⚡
+</p>
+
+---
+
+## 🏷️ Badges
+
+<p align="center">
+
+![Status](https://img.shields.io/badge/Status-Active-success)
+![Built With](https://img.shields.io/badge/Built%20With-AI%20%7C%20OCR%20%7C%20Web-blue)
+![Backend](https://img.shields.io/badge/Backend-FastAPI-green)
+![Frontend](https://img.shields.io/badge/Frontend-React%20%7C%20Streamlit-orange)
+![Database](https://img.shields.io/badge/Database-SQLite%20%7C%20PostgreSQL-lightgrey)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+
+</p>
+
+---
+
+## 📌 Overview
+
+Managing GST compliance is complex and time-consuming for MSMEs.
+
+This project introduces an **AI-driven compliance assistant** that:
+- 📄 Extracts invoice data using OCR  
+- ✅ Validates GST fields  
+- 🔄 Reconciles invoices  
+- 🚨 Flags mismatches & compliance risks  
+
+---
+
+## 🎯 Problem Statement
+
+> MSMEs struggle with GST compliance due to manual invoice handling, frequent mismatches, and lack of affordable tools.
+
+---
+
+## ✨ Features
+
+- 📤 Upload invoices (PDF/Image)
+- 🔍 OCR-based field extraction  
+- ✅ GST validation engine  
+- 🔄 Invoice reconciliation  
+- 🚨 Risk detection system  
+- 📊 Exportable reports (CSV/Excel)
+
+---
+
+## 🖼️ Screenshots
+
+### 📊 Dashboard View
+![Dashboard](screenshots/dashboard.png)
+
+### 📄 Invoice Upload & OCR
+![Upload](screenshots/upload.png)
+
+### ⚠️ Mismatch Detection
+![Mismatch](screenshots/mismatch.png)
+
+### 📑 Report Generation
+![Report](screenshots/report.png)
+
+---
+
+## 🧠 How It Works
+<img width="2139" height="326" alt="mermaid-diagram" src="https://github.com/user-attachments/assets/a6bcc4c5-2a66-47b4-abc0-0d24352dacca" />
+
+---
+
+## 🏗️ Tech Stack
+
+| Layer      | Tech |
+|-----------|-----|
+| Frontend  | React / Streamlit |
+| Backend   | FastAPI / Flask |
+| OCR       | Tesseract / Cloud OCR |
+| AI/ML     | Rule-based + ML |
+| Database  | SQLite / PostgreSQL |
+
+---
+
+## ⚙️ Installation
+
+```bash
+# Clone repo
+git clone https://github.com/your-username/your-repo.git
+
+# Move into project
+cd your-repo
+
+# Backend setup
+pip install -r requirements.txt
+uvicorn main:app --reload
+
+# Frontend setup
+npm install
+npm start
+```
+
+---
+
+## 📅 Development Timeline
+
+- **Week 1** → Research & dataset  
+- **Week 2** → OCR implementation  
+- **Week 3** → Validation logic  
+- **Week 4** → Reconciliation  
+- **Week 5** → Testing  
+- **Week 6** → Demo & deployment  
+
+---
+
+## 📊 Demo Workflow
+
+1. Upload invoices  
+2. Extract data automatically  
+3. Detect mismatches  
+4. Generate reconciliation report  
+
+---
+
+## 🔒 Data & Ethics
+
+- Uses anonymized data  
+- No long-term storage of sensitive info  
+- Displays confidence scores  
+- ⚠️ Not legal/tax advice  
+
+---
+
+## 🌟 Future Scope
+
+- e-Invoice JSON support  
+- GST return suggestions  
+- Multi-language OCR  
+- AI-based risk scoring  
+
+---
+
+## 👥 Team
+
+- 6-member development team  
+- AI Application Development Project  
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome!  
+Feel free to fork this repository and submit a pull request 🚀
