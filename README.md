@@ -119,7 +119,7 @@ npm start
 
 1. Upload invoices  
 2. Extract data automatically  
-3. Detect mismatches  
+3. Detect mismatches
 4. Generate reconciliation report  
 
 ---
@@ -144,7 +144,7 @@ npm start
 
 ## 👥 Team
 
-- 6-member development team  
+- 7 -member development team  
 - AI Application Development Project  
 
 ---
