@@ -1,15 +1,24 @@
+import React from 'react';
+
 export default function Footer() {
+  const currentYear = new Date().getFullYear();
+  
   return (
-    <footer className="mt-auto py-6 border-t border-slate-200 text-center">
-      <p className="text-slate-400 text-xs font-medium uppercase tracking-widest">
-        &copy; 2026 Compliance Helper AI • Built for AI Application Development Elective
-      </p>
-      <div className="flex justify-center gap-4 mt-2 text-[10px] text-slate-400">
-        <a href="#" className="hover:text-blue-500">Privacy Policy</a>
-        <span>•</span>
-        <a href="#" className="hover:text-blue-500">Terms of Service</a>
-        <span>•</span>
-        <span className="text-slate-300 italic">v1.0.0-PoC-Beta</span>
+    <footer className="mt-auto py-8 px-10 border-t border-slate-200">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="text-slate-500 text-sm font-medium">
+          © {currentYear} <span className="text-blue-600 font-bold">GST Helper.AI</span>. All Rights Reserved.
+        </div>
+        
+        <div className="flex items-center gap-8">
+          <a href="#" className="text-xs text-slate-400 hover:text-blue-600 font-semibold transition-colors">Privacy Policy</a>
+          <a href="#" className="text-xs text-slate-400 hover:text-blue-600 font-semibold transition-colors">Terms of Service</a>
+          <a href="#" className="text-xs text-slate-400 hover:text-blue-600 font-semibold transition-colors">Help Center</a>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">System Online</span>
+          </div>
+        </div>
       </div>
     </footer>
   );

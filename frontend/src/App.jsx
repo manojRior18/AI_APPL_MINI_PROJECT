@@ -46,6 +46,7 @@
 import { Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Header from './components/Header';
+import Footer from './components/Footer';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
 import Report from './pages/Report';
@@ -65,15 +66,18 @@ export default function App() {
       <div className={`flex-1 flex flex-col min-w-0 ${!isAuthPage ? 'ml-64' : ''}`}>
         {!isAuthPage && <Header />}
         
-        <main className={`${isAuthPage ? '' : 'p-10'} flex-1`}>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/upload" element={<Upload />} />
-            <Route path="/reports" element={<Report />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
+        <main className={`flex-1 flex flex-col ${isAuthPage ? '' : 'p-10 pb-0'}`}>
+          <div className="flex-1">
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/upload" element={<Upload />} />
+              <Route path="/reports" element={<Report />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/settings" element={<Settings />} />
+            </Routes>
+          </div>
+          {!isAuthPage && <Footer />}
         </main>
       </div>
     </div>
