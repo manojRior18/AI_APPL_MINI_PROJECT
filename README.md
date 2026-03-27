@@ -51,22 +51,6 @@ This project introduces an **AI-driven compliance assistant** that:
 
 ---
 
-## 🖼️ Screenshots
-
-### 📊 Dashboard View
-![Dashboard](screenshots/dashboard.png)
-
-### 📄 Invoice Upload & OCR
-![Upload](screenshots/upload.png)
-
-### ⚠️ Mismatch Detection
-![Mismatch](screenshots/mismatch.png)
-
-### 📑 Report Generation
-![Report](screenshots/report.png)
-
----
-
 ## 🧠 How It Works
 <img width="2139" height="326" alt="mermaid-diagram" src="https://github.com/user-attachments/assets/a6bcc4c5-2a66-47b4-abc0-0d24352dacca" />
 
@@ -76,11 +60,11 @@ This project introduces an **AI-driven compliance assistant** that:
 
 | Layer      | Tech |
 |-----------|-----|
-| Frontend  | React / Streamlit |
-| Backend   | FastAPI / Flask |
-| OCR       | Tesseract / Cloud OCR |
+| Frontend  | React |
+| Backend   | FastAPI |
+| OCR       | Tesseract |
 | AI/ML     | Rule-based + ML |
-| Database  | SQLite / PostgreSQL |
+| Database  | SQLite, PostgreSQL |
 
 ---
 
@@ -99,7 +83,7 @@ uvicorn main:app --reload
 
 # Frontend setup
 npm install
-npm start
+npm run dev
 ```
 
 ---
