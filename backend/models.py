@@ -1,18 +1,115 @@
-from sqlalchemy import Column, Integer, String, Float
-from database import Base  # Import the Base we created in database.py
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean
+from sqlalchemy.sql import func
+from pydantic import BaseModel, Field
+from typing import Optional
+from database import Base
+
+
+# ─── SQLAlchemy ORM Models ─────────────────────────────────────────────────────
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    business_name = Column(String, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    gstin = Column(String, nullable=True)
+    hashed_password = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 
 class Invoice(Base):
     __tablename__ = "invoices"
 
     id = Column(Integer, primary_key=True, index=True)
-    invoice_number = Column(String)  # [cite: 18]
-    gstin = Column(String)           # [cite: 18]
-    date = Column(String)            # [cite: 18]
-    taxable_value = Column(Float)    # [cite: 18]
-    tax_amount = Column(Float)       # [cite: 18]
-    
-    # 'purchase' or 'sales' to help with reconciliation logic [cite: 19]
-    invoice_type = Column(String) 
-    
-    # Status can be 'Pending', 'Verified', or 'Mismatch' [cite: 20]
+    filename = Column(String)
+    invoice_number = Column(String, index=True)
+    gstin = Column(String, index=True)
+    date = Column(String)
+    taxable_value = Column(Float, default=0.0)
+    tax_amount = Column(Float, default=0.0)
+    total_amount = Column(Float, default=0.0)
+    # 'purchase' or 'sales'
+    invoice_type = Column(String, default="purchase")
+    # 'Pending', 'Matched', 'Mismatch', 'Missing in Portal', 'Missing in Books'
     status = Column(String, default="Pending")
+    confidence_score = Column(Float, default=0.0)
+    raw_text = Column(String, nullable=True)
+    uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
+    user_id = Column(Integer, nullable=True)
+
+
+class ReconciliationLog(Base):
+    __tablename__ = "reconciliation_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    invoice_id = Column(Integer, nullable=True)
+    invoice_number = Column(String)
+    gstin = Column(String)
+    internal_taxable = Column(Float, default=0.0)
+    internal_tax = Column(Float, default=0.0)
+    external_taxable = Column(Float, nullable=True)
+    external_tax = Column(Float, nullable=True)
+    status = Column(String)
+    remarks = Column(String)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# ─── Pydantic Schemas ──────────────────────────────────────────────────────────
+
+class UserCreate(BaseModel):
+    business_name: str
+    email: str
+    gstin: Optional[str] = None
+    password: str
+
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+
+class InvoiceOut(BaseModel):
+    id: int
+    filename: Optional[str]
+    invoice_number: str
+    gstin: str
+    date: str
+    taxable_value: float
+    tax_amount: float
+    total_amount: float
+    invoice_type: str
+    status: str
+    confidence_score: float
+    uploaded_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class UploadResponse(BaseModel):
+    message: str
+    data: dict
+    validation: dict
+
+
+class ReconciliationItem(BaseModel):
+    invoice_number: str
+    gstin: str
+    taxable_value: float
+    tax_amount: float
+    status: str
+    remarks: str
+    external_taxable: Optional[float] = None
+    external_tax: Optional[float] = None
+
+
+class DashboardStats(BaseModel):
+    total_invoices: int
+    matched: int
+    mismatches: int
+    missing_in_portal: int
+    missing_in_books: int
+    pending: int
+    total_tax_value: float
+    compliance_score: float

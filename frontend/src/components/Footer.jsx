@@ -1,21 +1,18 @@
-import React from 'react';
-
 export default function Footer() {
-  const currentYear = new Date().getFullYear();
-  
   return (
-    <footer className="mt-auto py-8 px-10 border-t border-slate-200">
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="text-slate-500 text-sm font-medium">
-          © {currentYear} <span className="text-blue-600 font-bold">GST Helper.AI</span>. All Rights Reserved.
-        </div>
-        
-        <div className="flex items-center gap-8">
-          <a href="#" className="text-xs text-slate-400 hover:text-blue-600 font-semibold transition-colors">Privacy Policy</a>
-          <a href="#" className="text-xs text-slate-400 hover:text-blue-600 font-semibold transition-colors">Terms of Service</a>
-          <a href="#" className="text-xs text-slate-400 hover:text-blue-600 font-semibold transition-colors">Help Center</a>
+    <footer className="mt-auto py-6 px-8 border-t border-slate-200/80 bg-transparent">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+        <p className="text-slate-400 text-xs font-medium">
+          © {new Date().getFullYear()} <span className="text-blue-600 font-bold">GST Helper.AI</span>
+          <span className="text-slate-300 mx-2">·</span>
+          All rights reserved.
+        </p>
+        <div className="flex items-center gap-6">
+          {['Privacy Policy', 'Terms', 'Help Center'].map(link => (
+            <a key={link} href="#" className="text-xs text-slate-400 hover:text-blue-600 font-semibold transition-colors">{link}</a>
+          ))}
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">System Online</span>
           </div>
         </div>
