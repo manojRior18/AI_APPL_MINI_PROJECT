@@ -1,44 +1,95 @@
-/* @import "tailwindcss"; */
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
-
 :root {
-  --font-body: 'DM Sans', system-ui, sans-serif;
-  --font-mono: 'DM Mono', 'Courier New', monospace;
+  /* Typography */
+  --font-sans:  'Sora', system-ui, sans-serif;
+  --font-mono:  'IBM Plex Mono', monospace;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+
+  /* Brand Colors */
+  --brand-navy:     #0A1628;
+  --brand-blue:     #1A56DB;
+  --brand-blue-lt:  #3B82F6;
+  --brand-surface:  #F6F8FC;
+  --brand-border:   #E2E8F0;
+
+  /* Semantic */
+  --color-success:  #059669;
+  --color-danger:   #DC2626;
+  --color-warning:  #D97706;
+  --color-info:     #0284C7;
+  --color-muted:    #64748B;
+
+  /* Shadows */
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+  --shadow-elevated: 0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; margin: 0; }
 
 body {
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
+  background: var(--brand-surface);
+  color: #1E293B;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-.font-body { font-family: var(--font-body); }
-.font-mono  { font-family: var(--font-mono); }
+/* Scrollbar styling */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
 
-/* Scrollbar — only for the Navbar overflow area */
-.scrollbar-none::-webkit-scrollbar { display: none; }
-.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
-
-/* Smooth page transitions */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
+/* Page fade-in */
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+.page-enter { animation: pageIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-main > div {
-  animation: fadeIn 0.25s ease-out;
+/* Shimmer skeleton */
+@keyframes shimmer {
+  from { background-position: -400px 0; }
+  to   { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite linear;
+  border-radius: 6px;
 }
 
-/* Animate-in shims for dropdown menus (Tailwind v4 may handle this natively) */
-.animate-in { animation: fadeIn 0.15s ease-out; }
-.fade-in    { opacity: 1; }
-.slide-in-from-top-2 { transform: translateY(0); }
+/* Number ticker */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.count-animate { animation: countUp 0.5s ease-out both; }
+
+/* Tooltip */
+.tooltip {
+  position: relative;
+}
+.tooltip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0A1628;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 100;
+}
+.tooltip:hover::after { opacity: 1; }

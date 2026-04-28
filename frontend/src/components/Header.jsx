@@ -1,41 +1,5 @@
-// import { Bell, Search, ChevronDown } from 'lucide-react';
-
-// export default function Header() {
-//   return (
-//     <header className="h-20 border-b border-slate-200 bg-white/70 backdrop-blur-lg sticky top-0 z-40 flex items-center justify-between px-10">
-//       <div className="relative w-[400px]">
-//         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-//         <input 
-//           type="text" 
-//           placeholder="Search GSTINs, Invoices, or Vendors..." 
-//           className="w-full bg-slate-100/50 border border-slate-200 rounded-full py-2.5 pl-12 pr-4 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none"
-//         />
-//       </div>
-      
-//       <div className="flex items-center gap-6">
-//         <button className="relative p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-all">
-//           <Bell size={22} />
-//           <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white"></span>
-//         </button>
-        
-//         <div className="h-8 w-[1px] bg-slate-200"></div>
-        
-//         <div className="flex items-center gap-3 cursor-pointer group hover:bg-slate-50 p-1.5 pr-3 rounded-full transition-all border border-transparent hover:border-slate-200">
-//           <img src="https://ui-avatars.com/api/?name=Acme+Corp&background=0D8ABC&color=fff" alt="Profile" className="w-9 h-9 rounded-full shadow-sm" />
-//           <div className="text-left hidden md:block">
-//             <p className="text-sm font-bold text-slate-700 leading-tight">Acme Corp</p>
-//             <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Premium Plan</p>
-//           </div>
-//           <ChevronDown size={16} className="text-slate-400 group-hover:text-slate-600" />
-//         </div>
-//       </div>
-//     </header>
-//   );
-// }
-
-
-import { useState, useRef, useEffect } from 'react';
-import { Bell, Search, ChevronDown, User, Settings as SettingsIcon, LogOut, X } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Bell, Search, ChevronDown, Settings as SettingsIcon, LogOut, X, UploadCloud, FileText, Download, LayoutDashboard, Calendar } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../App';
 
@@ -47,24 +11,66 @@ const MOCK_ALERTS = [
 
 const DOT = { error: 'bg-rose-500', warning: 'bg-amber-400', success: 'bg-emerald-500' };
 
+const QUICK_ACTIONS = [
+  { id: 'upload', icon: UploadCloud, label: 'Upload Invoice', to: '/upload' },
+  { id: 'reconcile', icon: FileText, label: 'Run Reconciliation', to: '/reports' },
+  { id: 'export', icon: Download, label: 'Export Report', href: 'http://localhost:8000/export' },
+  { id: 'dashboard', icon: LayoutDashboard, label: 'View Dashboard', to: '/' },
+];
+
 export default function Header() {
   const [showProfile, setShowProfile] = useState(false);
   const [showNotifs, setShowNotifs]   = useState(false);
-  const [query, setQuery]             = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchIndex, setSearchIndex] = useState(-1);
+  const [fyOpen, setFyOpen] = useState(false);
+
   const profileRef = useRef(null);
-  const notifRef   = useRef(null);
+  const searchRef = useRef(null);
+  const inputRef = useRef(null);
   const navigate   = useNavigate();
   const { user, logout } = useAuth();
 
-  // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e) => {
       if (profileRef.current && !profileRef.current.contains(e.target)) setShowProfile(false);
-      if (notifRef.current   && !notifRef.current.contains(e.target))   setShowNotifs(false);
+      if (searchRef.current && !searchRef.current.contains(e.target)) setSearchFocused(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+
+      if (searchFocused) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSearchIndex(prev => (prev < QUICK_ACTIONS.length - 1 ? prev + 1 : prev));
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSearchIndex(prev => (prev > 0 ? prev - 1 : prev));
+        } else if (e.key === 'Enter' && searchIndex >= 0) {
+          e.preventDefault();
+          const action = QUICK_ACTIONS[searchIndex];
+          if (action.to) navigate(action.to);
+          else if (action.href) window.location.href = action.href;
+          setSearchFocused(false);
+          inputRef.current?.blur();
+        } else if (e.key === 'Escape') {
+          setSearchFocused(false);
+          inputRef.current?.blur();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [searchFocused, searchIndex, navigate]);
 
   const handleLogout = () => {
     logout();
@@ -74,104 +80,153 @@ export default function Header() {
   const initials = user?.business_name?.charAt(0)?.toUpperCase() || 'G';
 
   return (
-    <header className="h-[68px] border-b border-slate-200/80 bg-white/80 backdrop-blur-xl sticky top-0 z-40 flex items-center justify-between px-8 gap-6">
+    <>
+      <header className="h-[68px] border-b border-slate-200/80 bg-white/80 backdrop-blur-xl sticky top-0 z-30 flex items-center justify-between px-8 gap-6 ml-[260px]">
 
-      {/* ── Search ──────────────────────────────────────────────── */}
-      <div className="relative w-[380px]">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-        <input
-          type="text"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Search GSTINs, invoices, vendors…"
-          className="w-full bg-slate-100 border border-transparent rounded-full py-2.5 pl-11 pr-10 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-        />
-        {query && (
-          <button onClick={() => setQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-            <X size={14} />
-          </button>
-        )}
-        {query && (
-          <div className="absolute top-[calc(100%+8px)] w-full bg-white border border-slate-200 shadow-xl rounded-2xl p-4 z-50">
-            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mb-2">Search Results</p>
-            <p className="text-sm text-slate-500 italic">No matching invoices or GSTINs found for "{query}".</p>
+        {/* ── Search ──────────────────────────────────────────────── */}
+        <div className="relative w-[400px]" ref={searchRef}>
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Search or jump to..."
+            className="w-full bg-slate-100 border border-transparent rounded-full py-2 pl-11 pr-16 text-sm text-slate-700 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#1A56DB] focus:bg-white transition-all font-medium"
+            onFocus={() => { setSearchFocused(true); setSearchIndex(-1); }}
+          />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1 opacity-60">
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-slate-200 rounded text-slate-500">⌘</kbd>
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-slate-200 rounded text-slate-500">K</kbd>
           </div>
-        )}
-      </div>
 
-      <div className="flex items-center gap-3 ml-auto">
-
-        {/* ── Notifications ──────────────────────────────────────── */}
-        <div className="relative" ref={notifRef}>
-          <button
-            onClick={() => { setShowNotifs(v => !v); setShowProfile(false); }}
-            className="relative p-2.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all"
-          >
-            <Bell size={19} />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
-          </button>
-
-          {showNotifs && (
-            <div className="absolute top-[calc(100%+8px)] right-0 w-80 bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-                <p className="text-sm font-extrabold text-slate-800">Alerts</p>
-                <span className="text-[10px] bg-rose-100 text-rose-600 font-bold px-2 py-0.5 rounded-full">{MOCK_ALERTS.length} new</span>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {MOCK_ALERTS.map(alert => (
-                  <div key={alert.id} className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer">
-                    <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${DOT[alert.type]}`} />
-                    <div>
-                      <p className="text-sm text-slate-700 leading-snug">{alert.text}</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">{alert.time}</p>
-                    </div>
-                  </div>
+          {searchFocused && (
+            <div className="absolute top-[calc(100%+12px)] left-0 w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+              <p className="px-3 py-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">Quick Actions</p>
+              <div className="flex flex-col gap-1">
+                {QUICK_ACTIONS.map((action, idx) => (
+                  <button
+                    key={action.id}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-left ${
+                      searchIndex === idx ? 'bg-blue-50 text-[#1A56DB]' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                    onMouseEnter={() => setSearchIndex(idx)}
+                    onClick={() => {
+                      if (action.to) navigate(action.to);
+                      else if (action.href) window.location.href = action.href;
+                      setSearchFocused(false);
+                    }}
+                  >
+                    <action.icon size={16} className={searchIndex === idx ? 'text-[#1A56DB]' : 'text-slate-400'} />
+                    {action.label}
+                    {searchIndex === idx && <span className="ml-auto text-[10px] text-[#1A56DB]">↵ Enter</span>}
+                  </button>
                 ))}
               </div>
-              <div className="px-4 py-3 border-t border-slate-100 bg-slate-50">
-                <button className="text-xs text-blue-600 font-bold hover:underline">View all alerts →</button>
-              </div>
             </div>
           )}
         </div>
 
-        {/* ── Divider ────────────────────────────────────────────── */}
-        <div className="h-6 w-px bg-slate-200" />
+        <div className="flex items-center gap-4 ml-auto">
 
-        {/* ── Profile ────────────────────────────────────────────── */}
-        <div className="relative" ref={profileRef}>
+          {/* ── FY Selector ──────────────────────────────────────── */}
+          <div className="relative">
+            <button 
+              onClick={() => setFyOpen(!fyOpen)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-all"
+            >
+              <Calendar size={14} className="text-slate-400" />
+              FY 2024-25
+              <ChevronDown size={14} className="text-slate-400" />
+            </button>
+            {fyOpen && (
+              <div className="absolute top-[calc(100%+8px)] right-0 w-40 bg-white border border-slate-200 shadow-xl rounded-xl py-1 z-50">
+                <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-semibold bg-blue-50/50 text-[#1A56DB]">FY 2024-25</button>
+                <button className="w-full text-left px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 font-medium">FY 2023-24</button>
+              </div>
+            )}
+          </div>
+
+          <div className="h-5 w-px bg-slate-200" />
+
+          {/* ── Notifications ──────────────────────────────────────── */}
           <button
-            onClick={() => { setShowProfile(v => !v); setShowNotifs(false); }}
-            className="flex items-center gap-2.5 cursor-pointer p-1.5 pr-3 rounded-xl hover:bg-slate-100 transition-all border border-transparent hover:border-slate-200"
+            onClick={() => setShowNotifs(true)}
+            className="relative p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all"
           >
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-extrabold text-sm shadow">
-              {initials}
-            </div>
-            <div className="text-left hidden md:block">
-              <p className="text-sm font-bold text-slate-700 leading-tight">{user?.business_name || 'Business'}</p>
-              <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">GSTIN Active</p>
-            </div>
-            <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${showProfile ? 'rotate-180' : ''}`} />
+            <Bell size={18} />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
           </button>
 
-          {showProfile && (
-            <div className="absolute top-[calc(100%+8px)] right-0 w-52 bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="px-4 py-3 border-b border-slate-100">
-                <p className="text-sm font-bold text-slate-800 truncate">{user?.business_name}</p>
-                <p className="text-[11px] text-slate-400 truncate">{user?.email}</p>
+          <div className="h-5 w-px bg-slate-200" />
+
+          {/* ── Profile ────────────────────────────────────────────── */}
+          <div className="relative" ref={profileRef}>
+            <button
+              onClick={() => setShowProfile(v => !v)}
+              className="flex items-center gap-2 cursor-pointer p-1 rounded-xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200"
+            >
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#1A56DB] to-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow">
+                {initials}
               </div>
-              <div className="py-1.5">
-                <Link to="/settings" onClick={() => setShowProfile(false)} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 font-medium">
-                  <SettingsIcon size={15} /> Settings
-                </Link>
-                <button onClick={handleLogout} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 font-medium border-t border-slate-100 mt-1">
-                  <LogOut size={15} /> Sign Out
-                </button>
+              <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${showProfile ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showProfile && (
+              <div className="absolute top-[calc(100%+8px)] right-0 w-52 bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                  <p className="text-sm font-bold text-slate-800 truncate">{user?.business_name}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
+                </div>
+                <div className="py-1.5">
+                  <Link to="/settings" onClick={() => setShowProfile(false)} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 font-medium">
+                    <SettingsIcon size={15} /> Settings
+                  </Link>
+                  <button onClick={handleLogout} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 font-medium border-t border-slate-100 mt-1">
+                    <LogOut size={15} /> Sign Out
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {/* ── Slide-in Notification Panel ───────────────────────── */}
+      {showNotifs && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setShowNotifs(false)} />
+          <div className="relative w-96 bg-white h-full shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Notifications</h2>
+                <p className="text-sm text-slate-500 mt-1">You have {MOCK_ALERTS.length} unread alerts</p>
+              </div>
+              <button onClick={() => setShowNotifs(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
+              {MOCK_ALERTS.map(alert => (
+                <div key={alert.id} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm hover:shadow-md transition-shadow cursor-pointer flex gap-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${alert.type === 'error' ? 'bg-rose-100 text-rose-600' : alert.type === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                    <Bell size={18} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800 leading-snug mb-1">{alert.text}</p>
+                    <p className="text-xs text-slate-400">{alert.time}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-white">
+              <button className="w-full py-3 text-sm font-bold text-[#1A56DB] bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors">
+                Mark all as read
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

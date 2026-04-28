@@ -1,85 +1,94 @@
-import pytesseract
-from PIL import Image
 import os
 import io
-import cv2
-import numpy as np
+import logging
+from paddleocr import PaddleOCR
+from pdf2image import convert_from_path
 
-# --- 1. PRE-PROCESSING ENGINE (The Secret Sauce) ---
-def preprocess_image(image_path):
+# Configure logger to reduce verbosity
+logging.getLogger("ppocr").setLevel(logging.WARNING)
+
+# Initialize PaddleOCR globally so it doesn't reload models every time
+# use_angle_cls=True allows detecting text in images with slightly rotated text
+ocr_engine = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+
+def extract_text(file_path: str) -> dict:
     """
-    Industry-standard preprocessing for OCR:
-    Grayscale -> Noise Removal -> Thresholding (Binarization)
+    Extract text using PaddleOCR exclusively.
+    Returns:
+        dict: {"text": str, "blocks": list, "pages": int, "engine": "paddle"}
     """
-    # Read image using OpenCV
-    img = cv2.imread(image_path)
-    if img is None:
-        return None
-
-    # 1. Grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # 2. Rescaling (Make the text 2x larger for better detection)
-    gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-
-    # 3. Denoising (Remove small dots/scratches)
-    denoised = cv2.medianBlur(gray, 3)
-
-    # 4. Adaptive Thresholding (Makes it strictly Black & White)
-    # This handles invoices with shadows or colored backgrounds perfectly
-    thresh = cv2.adaptiveThreshold(
-        denoised, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
-    )
-
-    return thresh
-
-# --- 2. MAIN OCR FUNCTIONS ---
-
-def get_raw_text(file_path: str) -> str:
+    print(f"[OCR] Engine: PaddleOCR for {file_path}")
     ext = os.path.splitext(file_path)[1].lower()
+    
     if ext == ".pdf":
         return _ocr_pdf(file_path)
     return _ocr_image(file_path)
 
-def _ocr_image(file_path: str) -> str:
-    """Run Tesseract with optimized config and preprocessing."""
+def _ocr_image(file_path: str) -> dict:
+    """Run PaddleOCR on a single image file."""
     try:
-        processed_img = preprocess_image(file_path)
-        if processed_img is None:
-            return ""
-
-        # --psm 3: Fully automatic page segmentation (Best for Invoices)
-        # --oem 3: Default OCR engine mode
-        custom_config = r'--oem 3 --psm 3'
+        # PaddleOCR takes the file path directly
+        result = ocr_engine.ocr(file_path, cls=True)
         
-        text = pytesseract.image_to_string(processed_img, config=custom_config)
-        return text
+        text_lines = []
+        blocks = []
+        
+        # Result is a list of lists
+        if result and result[0]:
+            for line in result[0]:
+                box = line[0]
+                text = line[1][0]
+                confidence = line[1][1]
+                
+                text_lines.append(text)
+                blocks.append({
+                    "box": box,
+                    "text": text,
+                    "confidence": confidence
+                })
+                
+        return {
+            "text": "\n".join(text_lines),
+            "blocks": blocks,
+            "pages": 1,
+            "engine": "paddle"
+        }
     except Exception as e:
         print(f"[OCR] Image error: {e}")
-        return ""
+        return {"text": "", "blocks": [], "pages": 0, "engine": "paddle"}
 
-def _ocr_pdf(file_path: str) -> str:
-    """Enhanced PDF OCR with 300 DPI and Layout awareness."""
+def _ocr_pdf(file_path: str) -> dict:
+    """Enhanced PDF OCR with 200 DPI for PaddleOCR."""
     try:
-        from pdf2image import convert_from_path
-        # Use 300 DPI - Industry Standard for OCR
-        pages = convert_from_path(file_path, dpi=300)
+        # Use 200 DPI
+        pages = convert_from_path(file_path, dpi=200)
+        
         all_text = []
+        all_blocks = []
         
         for i, page in enumerate(pages):
-            # Save page temporarily to use OpenCV preprocessing
             temp_page_path = f"temp_page_{i}.png"
             page.save(temp_page_path, "PNG")
             
-            text = _ocr_image(temp_page_path)
-            all_text.append(text)
+            page_result = _ocr_image(temp_page_path)
             
-            os.remove(temp_page_path) # Clean up
-            
-        return "\n".join(all_text)
+            if page_result["text"]:
+                all_text.append(page_result["text"])
+            if page_result["blocks"]:
+                all_blocks.extend(page_result["blocks"])
+                
+            if os.path.exists(temp_page_path):
+                os.remove(temp_page_path)
+                
+        return {
+            "text": "\n".join(all_text),
+            "blocks": all_blocks,
+            "pages": len(pages),
+            "engine": "paddle"
+        }
     except Exception as e:
         print(f"[OCR] PDF error: {e}")
-        return ""
+        return {"text": "", "blocks": [], "pages": 0, "engine": "paddle"}
 
 def get_raw_text_from_bytes(file_bytes: bytes, filename: str) -> str:
     """Handles raw bytes from FastAPI UploadFile."""
@@ -87,6 +96,7 @@ def get_raw_text_from_bytes(file_bytes: bytes, filename: str) -> str:
     with open(temp_path, "wb") as f:
         f.write(file_bytes)
     
-    result = get_raw_text(temp_path)
-    os.remove(temp_path)
-    return result
+    result = extract_text(temp_path)
+    if os.path.exists(temp_path):
+        os.remove(temp_path)
+    return result["text"]
