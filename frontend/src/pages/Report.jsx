@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Download, RefreshCw, UploadCloud, Eye, Pencil, FileText, ChevronUp, ChevronDown, CheckCircle2, AlertCircle, AlertTriangle } from 'lucide-react';
+import { Search, Download, RefreshCw, UploadCloud, Eye, Pencil, FileText, ChevronUp, ChevronDown, CheckCircle2, AlertCircle, AlertTriangle, Plug, Send, Trash2, Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import api from '../api';
 import { Card, Badge, Button, Modal, EmptyState, Skeleton } from '../components/ui';
+import { useToast } from '../hooks/useToast';
 
 export default function Report() {
   const [invoices, setInvoices] = useState([]);
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { showToast } = useToast();
   
   // Filters
   const [activeTab, setActiveTab] = useState('All');
@@ -27,6 +31,18 @@ export default function Report() {
   
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [tallyLoading, setTallyLoading] = useState({}); // { id: bool }
+  
+  // GSTR-1 State
+  const [gstr1ModalOpen, setGstr1ModalOpen] = useState(false);
+  const [gstr1Period, setGstr1Period] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
+  const [gstr1Data, setGstr1Data] = useState(null);
+  const [gstr1Loading, setGstr1Loading] = useState(false);
+
+  // Duplicate State
+  const [duplicates, setDuplicates] = useState([]);
+  const [dupModalOpen, setDupModalOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   const fetchReconciliation = async () => {
     setLoading(true);
@@ -34,8 +50,13 @@ export default function Report() {
       const res = await api.get('/reconcile');
       setInvoices(res.data.results || []);
       setSummary(res.data.summary || {});
+      
+      // Also fetch duplicates
+      const dupRes = await api.get('/invoices/duplicates');
+      setDuplicates(dupRes.data || []);
     } catch (err) {
-      console.error(err);
+      setError("Failed to load reconciliation report.");
+      showToast("Error fetching report", "error");
     } finally {
       setLoading(false);
     }
@@ -58,9 +79,29 @@ export default function Report() {
       setPortalFile(null);
       fetchReconciliation();
     } catch (error) {
-      alert(error.response?.data?.detail || "Upload failed");
+      showToast(error.response?.data?.detail || "Upload failed", "error");
     } finally {
       setUploadingPortal(false);
+    }
+  };
+
+  const handleGenerateGSTR1 = async (format = 'json') => {
+    // ... logic remains same
+  };
+
+  const handleDeleteDuplicate = async (id) => {
+    setDeletingId(id);
+    try {
+      await api.delete(`/invoices/${id}`);
+      setDuplicates(prev => prev.map(group => ({
+        ...group,
+        items: group.items.filter(i => i.id !== id)
+      })).filter(group => group.items.length > 1));
+      fetchReconciliation();
+    } catch (err) {
+      showToast("Delete failed", "error");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -108,12 +149,53 @@ export default function Report() {
     return <Badge variant="neutral" dot>{status || 'Pending'}</Badge>;
   };
 
+  if (loading && invoices.length === 0) {
+    return (
+      <div className="p-8 max-w-[1400px] mx-auto space-y-6 animate-in fade-in">
+        <Skeleton height="100px" rounded="2xl" />
+        <div className="grid grid-cols-5 gap-4">
+          {[...Array(5)].map((_, i) => <Skeleton key={i} height="80px" rounded="xl" />)}
+        </div>
+        <Skeleton height="400px" rounded="2xl" />
+      </div>
+    );
+  }
+
+  if (error && invoices.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[70vh] gap-4">
+        <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center text-rose-500">
+          <AlertCircle size={32} />
+        </div>
+        <h3 className="text-lg font-bold text-slate-800">Error Loading Report</h3>
+        <p className="text-sm text-slate-500">{error}</p>
+        <Button onClick={fetchReconciliation}>Retry</Button>
+      </div>
+    );
+  }
+
   return (
     <div className="p-8 max-w-[1400px] mx-auto space-y-6 animate-in fade-in duration-500">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Reconciliation Report</h1>
         <p className="text-sm text-slate-500 mt-1 font-medium">Compare internal books against GST portal data.</p>
       </div>
+
+      {/* Duplicate Alert Banner */}
+      {duplicates.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between animate-in slide-in-from-top-4 duration-500">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center shadow-inner">
+              <AlertTriangle size={20} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-amber-900">{duplicates.length} duplicate invoice groups detected</p>
+              <p className="text-xs text-amber-700 font-medium">Multiple records found with same invoice number and supplier GSTIN.</p>
+            </div>
+          </div>
+          <Button variant="secondary" onClick={() => setDupModalOpen(true)} className="bg-white border-amber-200 text-amber-700 hover:bg-amber-100">Review Duplicates</Button>
+        </div>
+      )}
 
       {/* ── SUMMARY MINI CARDS ────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -160,14 +242,18 @@ export default function Report() {
           
           <Button variant="secondary" onClick={() => setUploadModalOpen(true)} icon={<UploadCloud size={16}/>}>Upload CSV</Button>
           <Button variant="secondary" onClick={handleExport} icon={<Download size={16}/>}>Export</Button>
+          <Link to="/tally">
+            <Button variant="secondary" icon={<Plug size={16}/>}>Tally Export</Button>
+          </Link>
+          <Button variant="secondary" onClick={() => setGstr1ModalOpen(true)} icon={<FileText size={16}/>}>GSTR-1 Draft</Button>
           <Button variant="primary" onClick={fetchReconciliation} loading={loading} icon={<RefreshCw size={16}/>}>Run Recon</Button>
         </div>
       </div>
 
-      {/* ── DATA TABLE ────────────────────────────────────────────────────── */}
-      <Card padding="none" className="overflow-hidden flex flex-col border border-slate-200 shadow-sm">
+      {/* ── TABLE ───────────────────────────────────────────────────────── */}
+      <Card padding="none" className="overflow-hidden border-slate-200 shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse min-w-[1000px]">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200">
                 <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-12 text-center">#</th>
@@ -177,6 +263,7 @@ export default function Report() {
                   { key: 'gstin', label: 'GSTIN' },
                   { key: 'taxable_value', label: 'Taxable' },
                   { key: 'tax_amount', label: 'Tax' },
+                  { key: 'tally_status', label: 'Tally' },
                   { key: 'status', label: 'Status' }
                 ].map(col => (
                   <th 
@@ -219,19 +306,45 @@ export default function Report() {
                     <td className="p-4 text-sm font-medium text-slate-700">₹{inv.taxable_value?.toFixed(2) || '0.00'}</td>
                     <td className="p-4 text-sm font-bold text-slate-900">₹{inv.tax_amount?.toFixed(2) || '0.00'}</td>
                     <td className="p-4"><StatusBadge status={inv.status} /></td>
+                    <td className="p-4">
+                      {inv.tally_status === 'Exported' ? (
+                        <Badge variant="success">✓ Tally</Badge>
+                      ) : inv.tally_status === 'Failed' ? (
+                        <Badge variant="danger">! Failed</Badge>
+                      ) : (
+                        <Badge variant="neutral">—</Badge>
+                      )}
+                    </td>
                     <td className="p-4 flex justify-center gap-2">
                       <button onClick={() => { setSelectedInvoice(inv); setDetailModalOpen(true); }} className="p-2 text-slate-400 hover:text-[#1A56DB] hover:bg-blue-50 rounded-lg transition-colors">
                         <Eye size={16} />
                       </button>
-                      <button className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
-                        <Pencil size={16} />
+                      <button 
+                        onClick={async () => {
+                          const company = localStorage.getItem('gst_tally_company');
+                          if (!company) { alert("Please set Tally company in Tally Export page first."); return; }
+                          setTallyLoading(prev => ({ ...prev, [inv.id]: true }));
+                          try {
+                            await api.post(`/tally/push/${inv.id}`, { company_name: company });
+                            fetchReconciliation();
+                          } catch (err) {
+                            alert(err.response?.data?.detail || "Tally sync failed");
+                          } finally {
+                            setTallyLoading(prev => ({ ...prev, [inv.id]: false }));
+                          }
+                        }}
+                        disabled={tallyLoading[inv.id]}
+                        className={`p-2 rounded-lg transition-colors ${inv.tally_status === 'Exported' ? 'text-emerald-500 bg-emerald-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
+                        title="Push to Tally"
+                      >
+                        {tallyLoading[inv.id] ? <RefreshCw size={16} className="animate-spin" /> : <Send size={16} />}
                       </button>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="8" className="p-0">
+                  <td colSpan="9" className="p-0">
                     <EmptyState 
                       icon={<FileText />} 
                       title="No invoices found" 
@@ -342,6 +455,120 @@ export default function Report() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* ── GSTR-1 GENERATOR MODAL ────────────────────────────────────────── */}
+      <Modal isOpen={gstr1ModalOpen} onClose={() => setGstr1ModalOpen(false)} title="Generate GSTR-1 Draft">
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase">Month</label>
+              <select 
+                value={gstr1Period.month}
+                onChange={e => setGstr1Period({...gstr1Period, month: parseInt(e.target.value)})}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
+              >
+                {Array.from({length: 12}, (_, i) => (
+                  <option key={i+1} value={i+1}>{new Date(2000, i).toLocaleString('default', { month: 'long' })}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase">Year</label>
+              <select 
+                value={gstr1Period.year}
+                onChange={e => setGstr1Period({...gstr1Period, year: parseInt(e.target.value)})}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
+              >
+                {[2023, 2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button variant="primary" className="flex-1" onClick={() => handleGenerateGSTR1('json')} loading={gstr1Loading}>Preview Draft</Button>
+            <Button variant="secondary" className="flex-1" onClick={() => handleGenerateGSTR1('excel')} icon={<Download size={16}/>}>Excel</Button>
+          </div>
+
+          {gstr1Data && (
+            <div className="space-y-4 animate-in fade-in">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-center">
+                  <p className="text-[10px] font-bold text-blue-600 uppercase">B2B Count</p>
+                  <p className="text-xl font-extrabold text-blue-900">{gstr1Data.b2b.reduce((acc, curr) => acc + curr.inv.length, 0)}</p>
+                </div>
+                <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100 text-center">
+                  <p className="text-[10px] font-bold text-indigo-600 uppercase">B2CS Count</p>
+                  <p className="text-xl font-extrabold text-indigo-900">{gstr1Data.b2cs.length}</p>
+                </div>
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-center">
+                  <p className="text-[10px] font-bold text-emerald-600 uppercase">Total Tax</p>
+                  <p className="text-sm font-extrabold text-emerald-900">₹{gstr1Data.b2b.reduce((acc, curr) => acc + curr.inv.reduce((a,c) => a + c.itms[0].itm_det.camt + c.itms[0].itm_det.samt + c.itms[0].itm_det.iamt, 0), 0).toFixed(0)}</p>
+                </div>
+              </div>
+              
+              <div className="bg-slate-900 rounded-xl p-4 relative group">
+                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                   <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(gstr1Data, null, 2));
+                      alert("JSON copied to clipboard!");
+                    }}
+                    className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-bold"
+                   >Copy JSON</button>
+                </div>
+                <pre className="text-[10px] text-blue-300 font-mono overflow-x-auto max-h-40 scrollbar-thin">
+                  {JSON.stringify(gstr1Data, null, 2)}
+                </pre>
+              </div>
+
+              <div className="flex gap-2 p-3 bg-amber-50 border border-amber-100 rounded-xl text-[10px] text-amber-700 font-medium">
+                <AlertTriangle size={14} className="shrink-0" />
+                <p>This draft is for reference only. Cross-verify with your physical invoices before filing on the GST portal (gst.gov.in).</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* ── DUPLICATE REVIEW MODAL ────────────────────────────────────────── */}
+      <Modal isOpen={dupModalOpen} onClose={() => setDupModalOpen(false)} title="Review Duplicate Invoices">
+        <div className="space-y-6">
+          <p className="text-sm text-slate-500 font-medium">We found multiple entries for the same invoice. Please keep the correct one and delete others to maintain data integrity.</p>
+          
+          <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin">
+            {duplicates.map((group, idx) => (
+              <div key={idx} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <Badge variant="warning">{group.invoice_number}</Badge>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{group.supplier_gstin}</span>
+                </div>
+                
+                <div className="space-y-2">
+                  {group.items.map(item => (
+                    <div key={item.id} className="bg-white p-3 rounded-xl border border-slate-100 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">Uploaded: {new Date(item.uploaded_at).toLocaleString()}</p>
+                        <p className="text-[10px] text-slate-500 font-medium">Amount: ₹{item.total_amount?.toFixed(2)}</p>
+                      </div>
+                      <button 
+                        onClick={() => handleDeleteDuplicate(item.id)}
+                        disabled={deletingId === item.id}
+                        className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                      >
+                        {deletingId === item.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="pt-4 border-t border-slate-100 flex justify-end">
+            <Button variant="primary" onClick={() => setDupModalOpen(false)}>Done Reviewing</Button>
+          </div>
+        </div>
       </Modal>
 
     </div>

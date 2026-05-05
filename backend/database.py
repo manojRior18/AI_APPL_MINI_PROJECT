@@ -2,8 +2,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
-
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./gst_helper.db")
+_HERE = os.path.dirname(os.path.abspath(__file__))
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    f"sqlite:///{os.path.join(_HERE, 'gst_helper.db')}"
+)
 
 engine = create_engine(
     DATABASE_URL,

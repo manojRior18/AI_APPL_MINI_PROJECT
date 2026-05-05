@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { UploadCloud, File as FileIcon, CheckCircle2, ChevronRight, Check, X, ShieldCheck, Eye, List, Search, Pencil, Save, ChevronDown, AlertCircle } from 'lucide-react';
 import { Card, Button, Badge } from '../components/ui';
 import api from '../api';
+import { useToast } from '../hooks/useToast';
 
 export default function Upload() {
   const [step, setStep] = useState(1);
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]); // Array of { file, status }
   const [invoiceType, setInvoiceType] = useState('purchase');
+  const [batchResults, setBatchResults] = useState([]);
   
   // Processing state
   const [processStep, setProcessStep] = useState(0);
@@ -22,44 +24,47 @@ export default function Upload() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
 
-  const fileInputRef = useRef(null);
+   const fileInputRef = useRef(null);
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const handleFileDrop = (e) => {
     e.preventDefault();
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) setFile(droppedFile);
+    const newFiles = Array.from(e.dataTransfer.files);
+    setFiles(prev => [...prev, ...newFiles]);
+  };
+
+  const handleFileSelect = (e) => {
+    const newFiles = Array.from(e.target.files);
+    setFiles(prev => [...prev, ...newFiles]);
   };
 
   const startProcessing = async () => {
-    if (!file) return;
+    if (files.length === 0) return;
     setStep(2);
     setProcessStep(0);
     
-    // Simulate animated steps
     const timers = [];
-    timers.push(setTimeout(() => setProcessStep(1), 800));
-    timers.push(setTimeout(() => setProcessStep(2), 1600));
-    timers.push(setTimeout(() => setProcessStep(3), 2400));
+    timers.push(setTimeout(() => setProcessStep(1), 1000));
+    timers.push(setTimeout(() => setProcessStep(2), 2500));
+    timers.push(setTimeout(() => setProcessStep(3), 4000));
     
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      files.forEach(f => formData.append('files', f));
+      
       const res = await api.post(`/upload?invoice_type=${invoiceType}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
+      
       timers.push(setTimeout(() => {
         setProcessStep(4);
-        setExtractedData(res.data.data);
-        setEditValues(res.data.data); // Initialize editable values
-        setValidation(res.data.validation);
-        setRawText(res.data.raw_text_preview);
-        setInvoiceId(res.data.invoice_id);
-        setTimeout(() => setStep(3), 600);
-      }, 3200));
+        setBatchResults(res.data.results);
+        setTimeout(() => setStep(3), 800);
+      }, 5500));
     } catch (error) {
       timers.forEach(clearTimeout);
-      alert(error.response?.data?.detail || "Upload failed");
+      showToast(error.response?.data?.detail || "Upload failed", "error");
       setStep(1);
     }
   };
@@ -75,14 +80,15 @@ export default function Upload() {
       setExtractedData(prev => ({ ...prev, [field]: editValues[field] }));
       setEditingField(null);
     } catch (err) {
-      alert("Failed to update field");
+      showToast("Failed to update field", "error");
     } finally {
       setSavingEdit(false);
     }
   };
 
   const reset = () => {
-    setFile(null);
+    setFiles([]);
+    setBatchResults([]);
     setStep(1);
     setProcessStep(0);
   };
@@ -147,7 +153,7 @@ export default function Upload() {
               <button onClick={() => setInvoiceType('sales')} className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${invoiceType === 'sales' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Sales</button>
             </div>
 
-            {!file ? (
+            {files.length === 0 ? (
               <>
                 <div 
                   onDragOver={(e) => e.preventDefault()} 
@@ -155,31 +161,38 @@ export default function Upload() {
                   className="w-full max-w-2xl border-2 border-dashed border-slate-300 rounded-3xl p-16 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 hover:border-blue-400 transition-all group"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <input type="file" ref={fileInputRef} onChange={(e) => setFile(e.target.files[0])} className="hidden" accept=".pdf,.png,.jpg,.jpeg" />
+                  <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept=".pdf,.png,.jpg,.jpeg" multiple />
                   
                   <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 group-hover:-translate-y-2 transition-all duration-300 shadow-inner">
                     <UploadCloud size={36} className="text-[#1A56DB]" />
                   </div>
-                  <h3 className="text-xl font-bold text-slate-800 mb-2">Click or drag file to upload</h3>
-                  <p className="text-slate-500 font-medium text-sm text-center">Support for PDF, PNG, JPG up to 20MB</p>
+                  <h3 className="text-xl font-bold text-slate-800 mb-2">Click or drag files to upload</h3>
+                  <p className="text-slate-500 font-medium text-sm text-center">Support for multiple PDFs, PNGs, JPGs up to 20MB each</p>
                 </div>
-                <button className="mt-6 text-sm font-bold text-[#1A56DB] hover:underline flex items-center gap-1">Or try a sample invoice <ChevronRight size={16}/></button>
               </>
             ) : (
-              <div className="w-full max-w-lg flex flex-col items-center animate-in zoom-in-95 duration-300">
-                <div className="w-full p-6 bg-slate-50 border border-slate-200 rounded-2xl flex items-center gap-4 mb-8">
-                  <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-center shrink-0">
-                    <FileIcon size={24} className="text-[#1A56DB]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-slate-800 truncate">{file.name}</p>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                  </div>
-                  <button onClick={() => setFile(null)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-all"><X size={20}/></button>
+              <div className="w-full max-w-2xl flex flex-col items-center animate-in zoom-in-95 duration-300">
+                <div className="w-full max-h-[300px] overflow-y-auto space-y-3 mb-8 pr-2 scrollbar-thin">
+                  {files.map((f, i) => (
+                    <div key={i} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-4">
+                      <div className="w-10 h-10 bg-white rounded-lg shadow-sm border border-slate-200 flex items-center justify-center shrink-0">
+                        <FileIcon size={20} className="text-[#1A56DB]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-slate-800 truncate">{f.name}</p>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">{(f.size / 1024 / 1024).toFixed(2)} MB</p>
+                      </div>
+                      <button onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))} className="p-2 text-slate-400 hover:text-rose-500 transition-all"><X size={18}/></button>
+                    </div>
+                  ))}
                 </div>
-                <Button variant="primary" size="lg" className="w-full max-w-xs" onClick={startProcessing} icon={<Search size={18}/>}>
-                  Process with AI →
-                </Button>
+                
+                <div className="flex gap-4 w-full max-w-md">
+                   <Button variant="secondary" className="flex-1" onClick={() => fileInputRef.current?.click()}>Add More</Button>
+                   <Button variant="primary" className="flex-2" onClick={startProcessing} icon={<Search size={18}/>}>
+                    Process {files.length} {files.length === 1 ? 'Invoice' : 'Invoices'}
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -219,99 +232,61 @@ export default function Upload() {
         )}
 
         {/* ── STEP 3: RESULTS ────────────────────────────────────────── */}
-        {step === 3 && extractedData && (
-          <div className="flex-1 flex flex-col h-full">
+        {step === 3 && batchResults.length > 0 && (
+          <div className="flex-1 flex flex-col h-full overflow-hidden">
             <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center shadow-sm">
                   <Check size={20} strokeWidth={3} />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800">Extraction Complete</h2>
-                  <p className="text-xs text-slate-500 font-medium">Invoice processed in 3.2s</p>
+                  <h2 className="text-lg font-bold text-slate-800">Batch Processing Complete</h2>
+                  <p className="text-xs text-slate-500 font-medium">{batchResults.filter(r => r.success).length} of {batchResults.length} invoices processed successfully</p>
                 </div>
               </div>
               <div className="flex gap-3">
-                <Button variant="secondary" onClick={reset}>Upload Another</Button>
-                <Button variant="primary" onClick={() => navigate('/reports')}>Go to Reports →</Button>
+                <Button variant="secondary" onClick={reset}>New Batch</Button>
+                <Button variant="primary" onClick={() => navigate('/reports')}>View in Reports →</Button>
               </div>
             </div>
 
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-2">
-              
-              {/* Extracted Data Form */}
-              <div className="p-6 border-r border-slate-100 overflow-y-auto max-h-[600px] scrollbar-none">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">Extracted Data</h3>
-                  <Badge variant="info">Editable</Badge>
-                </div>
-                <div className="space-y-1">
-                  <EditableRow label="Invoice Number" field="invoice_number" />
-                  <EditableRow label="Vendor Name" field="vendor_name" />
-                  <EditableRow label="Supplier GSTIN" field="supplier_gstin" />
-                  <EditableRow label="Buyer GSTIN" field="buyer_gstin" />
-                  <EditableRow label="HSN Code" field="hsn_code" />
-                  <EditableRow label="Invoice Date" field="date" />
-                  <EditableRow label="Taxable Value" field="taxable_value" isNumeric />
-                  <EditableRow label="CGST Amount" field="cgst_amount" isNumeric />
-                  <EditableRow label="SGST Amount" field="sgst_amount" isNumeric />
-                  <EditableRow label="IGST Amount" field="igst_amount" isNumeric />
-                  <EditableRow label="Total Amount" field="total_amount" isNumeric />
-                </div>
-              </div>
-
-              {/* Validation Report */}
-              <div className="p-6 bg-slate-50/30 overflow-y-auto max-h-[600px] scrollbar-none">
-                <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider mb-6">Validation Report</h3>
-                
-                {/* Confidence Bar */}
-                <div className="mb-8">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-bold text-slate-600">AI Confidence</span>
-                    <span className="text-sm font-extrabold text-[#1A56DB]">{validation?.confidence_score}%</span>
-                  </div>
-                  <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-blue-400 to-[#1A56DB] rounded-full transition-all duration-1000" style={{ width: `${validation?.confidence_score}%` }} />
-                  </div>
-                </div>
-
-                <div className="space-y-3 mb-8">
-                  {validation?.errors?.map((err, idx) => (
-                    <div key={`err-${idx}`} className="flex items-start gap-3 p-3 bg-rose-50 border border-rose-100 rounded-xl shadow-sm">
-                      <X size={16} className="text-rose-500 mt-0.5 shrink-0" />
-                      <p className="text-sm font-medium text-rose-700">{err}</p>
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
+              {batchResults.map((res, idx) => (
+                <div key={idx} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                  <div className={`p-4 flex items-center justify-between ${res.success ? 'bg-emerald-50/30' : 'bg-rose-50/30'}`}>
+                    <div className="flex items-center gap-3">
+                      {res.success ? <CheckCircle2 className="text-emerald-500" size={20} /> : <X className="text-rose-500" size={20} />}
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">{res.filename}</p>
+                        {res.success ? (
+                          <p className="text-[10px] font-bold text-slate-500 uppercase">Inv: {res.data.invoice_number} • {res.data.vendor_name}</p>
+                        ) : (
+                          <p className="text-[10px] font-bold text-rose-500 uppercase">Error: {res.error}</p>
+                        )}
+                      </div>
                     </div>
-                  ))}
-                  {validation?.warnings?.map((warn, idx) => (
-                    <div key={`warn-${idx}`} className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-100 rounded-xl shadow-sm">
-                      <AlertCircle size={16} className="text-amber-500 mt-0.5 shrink-0" />
-                      <p className="text-sm font-medium text-amber-700">{warn}</p>
-                    </div>
-                  ))}
-                  {validation?.is_valid && validation?.errors?.length === 0 && (
-                    <div className="flex items-start gap-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl shadow-sm">
-                      <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0" />
-                      <p className="text-sm font-medium text-emerald-700">All GST compliance checks passed!</p>
+                    {res.success && (
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">Total Value</p>
+                          <p className="text-sm font-extrabold text-slate-800">₹{res.data.total_amount?.toFixed(2)}</p>
+                        </div>
+                        <div className="w-24 text-right">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">Confidence</p>
+                          <p className={`text-sm font-extrabold ${res.validation.confidence_score > 80 ? 'text-emerald-600' : 'text-amber-600'}`}>{res.validation.confidence_score}%</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {res.success && res.validation.errors.length > 0 && (
+                    <div className="px-4 pb-4 flex flex-wrap gap-2">
+                      {res.validation.errors.map((err, i) => (
+                        <span key={i} className="px-2 py-1 bg-rose-100 text-rose-700 text-[9px] font-bold rounded-lg">{err}</span>
+                      ))}
                     </div>
                   )}
                 </div>
-
-                {/* Raw Text Accordion */}
-                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-                  <button onClick={() => setShowRaw(!showRaw)} className="flex items-center justify-between w-full p-4 hover:bg-slate-50 transition-colors">
-                    <span className="text-sm font-bold text-slate-700">View Raw OCR Text</span>
-                    <ChevronDown size={16} className={`text-slate-400 transition-transform ${showRaw ? 'rotate-180' : ''}`} />
-                  </button>
-                  {showRaw && (
-                    <div className="p-4 border-t border-slate-100 bg-slate-900">
-                      <pre className="text-[10px] text-green-400 font-mono whitespace-pre-wrap leading-relaxed h-48 overflow-y-auto scrollbar-none">
-                        {rawText || "No raw text available."}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-
-              </div>
+              ))}
             </div>
           </div>
         )}

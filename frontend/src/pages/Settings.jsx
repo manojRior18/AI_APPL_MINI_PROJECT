@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { User, Bell, Shield, Sliders, Database, Upload, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
-import { Card, Button, Modal } from '../components/ui';
+import { User, Bell, Shield, Sliders, Database, Upload, CheckCircle2, XCircle, AlertTriangle, Plug, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Card, Button, Modal, Badge } from '../components/ui';
 import { useAuth } from '../App';
+import api from '../api';
+import { useToast } from '../hooks/useToast';
 
 export default function Settings() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
+  const { showToast } = useToast();
 
   // Profile State
   const [gstin, setGstin] = useState(user?.gstin || '');
@@ -18,6 +21,12 @@ export default function Settings() {
   
   // Modals
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  
+  // Tally State
+  const [tallyUrl, setTallyUrl] = useState(localStorage.getItem('gst_tally_url') || 'http://localhost:9000');
+  const [companyName, setCompanyName] = useState(localStorage.getItem('gst_tally_company') || '');
+  const [connStatus, setConnStatus] = useState('idle');
+  const [showHelp, setShowHelp] = useState(false);
 
   // GSTIN Validation (Format: 2 digits, 10 chars, 1 digit, 1 char, 1 char)
   useEffect(() => {
@@ -28,7 +37,10 @@ export default function Settings() {
 
   const handleSave = () => {
     setLoading(true);
-    setTimeout(() => { setLoading(false); alert("Settings saved successfully!"); }, 800);
+    setTimeout(() => { 
+      setLoading(false); 
+      showToast("Settings saved successfully!", "success"); 
+    }, 800);
   };
 
   const getPwdStrength = () => {
@@ -45,6 +57,7 @@ export default function Settings() {
     { id: 'notifications', icon: Bell, label: 'Notifications' },
     { id: 'security', icon: Shield, label: 'Security' },
     { id: 'gst', icon: Sliders, label: 'GST Configuration' },
+    { id: 'tally', icon: Plug, label: 'Tally Integration' },
     { id: 'data', icon: Database, label: 'Data & Export' },
   ];
 
@@ -272,11 +285,88 @@ export default function Settings() {
                 </div>
                 <Button variant="secondary" className="w-full">Download Data</Button>
               </div>
+            </div>
+          )}
 
-              <div className="pt-8 mt-8 border-t border-slate-100">
-                <h3 className="text-sm font-bold text-rose-600 mb-2">Danger Zone</h3>
-                <p className="text-sm text-slate-500 mb-4">Permanently delete all your invoices, reconciliation data, and portal records. This action cannot be undone.</p>
-                <Button variant="danger" onClick={() => setDeleteModalOpen(true)}>Delete All Data</Button>
+          {/* TALLY INTEGRATION TAB */}
+          {activeTab === 'tally' && (
+            <div className="space-y-8 animate-in fade-in">
+              <h2 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-4">Tally Integration</h2>
+              
+              <div className="max-w-md space-y-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tally XML API URL</label>
+                  <input 
+                    type="text" 
+                    value={tallyUrl}
+                    onChange={(e) => setTallyUrl(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#1A56DB] font-semibold"
+                    placeholder="http://localhost:9000"
+                  />
+                  <p className="text-[10px] text-slate-500 font-medium">Default port is 9000. Ensure Tally is open on this computer.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Default Company Name</label>
+                  <input 
+                    type="text" 
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#1A56DB] font-semibold"
+                    placeholder="E.g. My Business Pvt Ltd"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <Button 
+                    variant="primary" 
+                    onClick={async () => {
+                      setConnStatus('testing');
+                      try {
+                        const res = await api.get('/tally/test', { params: { tally_url: tallyUrl } });
+                        if (res.data.connected) {
+                          setConnStatus('connected');
+                          localStorage.setItem('gst_tally_url', tallyUrl);
+                          localStorage.setItem('gst_tally_company', companyName);
+                          localStorage.setItem('gst_tally_connected', 'true');
+                        } else {
+                          setConnStatus('error');
+                        }
+                      } catch (err) {
+                        setConnStatus('error');
+                      }
+                    }}
+                    loading={connStatus === 'testing'}
+                    icon={<RefreshCw size={16}/>}
+                  >
+                    Test & Save Connection
+                  </Button>
+                  
+                  {connStatus !== 'idle' && (
+                    <div className={`p-3 rounded-xl border flex items-center gap-3 ${connStatus === 'connected' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-rose-50 border-rose-100 text-rose-700'}`}>
+                      <div className={`w-2 h-2 rounded-full ${connStatus === 'connected' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                      <span className="text-xs font-bold">{connStatus === 'connected' ? 'Connection Successful' : 'Connection Failed'}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-6 border-t border-slate-100">
+                  <button 
+                    onClick={() => setShowHelp(!showHelp)}
+                    className="flex items-center justify-between w-full text-sm font-bold text-slate-700 hover:text-[#1A56DB]"
+                  >
+                    How to enable Tally XML API {showHelp ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                  </button>
+                  {showHelp && (
+                    <div className="mt-4 p-4 bg-slate-50 rounded-2xl space-y-3 text-xs text-slate-600 animate-in slide-in-from-top-2">
+                      <p>1. Open TallyPrime on this computer.</p>
+                      <p>2. Press <b>F12</b> (Configure) &gt; <b>Advanced Configuration</b>.</p>
+                      <p>3. Set <b>Enable ODBC Server</b> to <b>Yes</b>.</p>
+                      <p>4. Set Port to <b>9000</b> (or your preferred port).</p>
+                      <p>5. Restart TallyPrime to apply changes.</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -293,7 +383,7 @@ export default function Settings() {
           <p className="text-slate-500 text-sm">Are you absolutely sure you want to delete all invoices and reconciliation data? This action cannot be reversed.</p>
           <div className="flex gap-3 pt-6 mt-6 border-t border-slate-100">
             <Button variant="secondary" className="flex-1" onClick={() => setDeleteModalOpen(false)}>Cancel</Button>
-            <Button variant="danger" className="flex-1" onClick={() => { alert("Data deleted!"); setDeleteModalOpen(false); }}>Yes, Delete Everything</Button>
+            <Button variant="danger" className="flex-1" onClick={() => { showToast("Data deleted!", "success"); setDeleteModalOpen(false); }}>Yes, Delete Everything</Button>
           </div>
         </div>
       </Modal>

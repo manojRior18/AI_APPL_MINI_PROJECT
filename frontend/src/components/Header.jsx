@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Search, ChevronDown, Settings as SettingsIcon, LogOut, X, UploadCloud, FileText, Download, LayoutDashboard, Calendar } from 'lucide-react';
+import { Bell, Search, ChevronDown, Settings as SettingsIcon, LogOut, X, UploadCloud, FileText, Download, LayoutDashboard, Calendar, Menu } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../App';
 
@@ -18,7 +18,7 @@ const QUICK_ACTIONS = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'View Dashboard', to: '/' },
 ];
 
-export default function Header() {
+export default function Header({ onMenuClick }) {
   const [showProfile, setShowProfile] = useState(false);
   const [showNotifs, setShowNotifs]   = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
@@ -81,10 +81,18 @@ export default function Header() {
 
   return (
     <>
-      <header className="h-[68px] border-b border-slate-200/80 bg-white/80 backdrop-blur-xl sticky top-0 z-30 flex items-center justify-between px-8 gap-6 ml-[260px]">
+      <header className="h-[68px] border-b border-slate-200/80 bg-white/80 backdrop-blur-xl sticky top-0 z-30 flex items-center justify-between px-4 lg:px-8 gap-4 ml-0 lg:ml-[260px]">
+        
+        {/* Mobile Menu Toggle */}
+        <button 
+          onClick={onMenuClick}
+          className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
+        >
+          <Menu size={22} />
+        </button>
 
         {/* ── Search ──────────────────────────────────────────────── */}
-        <div className="relative w-[400px]" ref={searchRef}>
+        <div className="relative w-full max-w-[400px]" ref={searchRef}>
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input
             ref={inputRef}

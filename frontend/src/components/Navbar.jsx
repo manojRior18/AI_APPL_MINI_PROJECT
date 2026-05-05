@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, UploadCloud, FileText, ShieldCheck, Settings, LogOut, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, UploadCloud, FileText, ShieldCheck, Settings, LogOut, ChevronRight, Plug, Calendar } from 'lucide-react';
 import { useAuth } from '../App';
 
 const NAV_ITEMS = [
   { to: '/',        icon: LayoutDashboard, label: 'Dashboard',        section: 'main' },
   { to: '/upload',  icon: UploadCloud,     label: 'Upload Invoices',  section: 'main' },
   { to: '/reports', icon: FileText,        label: 'Reconciliation',   section: 'main' },
+  { to: '/calendar',icon: Calendar,        label: 'Filing Calendar',  section: 'main' },
+  { to: '/tally',   icon: Plug,            label: 'Tally Export',     section: 'main', badge: 'BETA' },
   { to: '/settings',icon: Settings,        label: 'Settings',         section: 'bottom' },
 ];
 
-export default function Navbar() {
+export default function Navbar({ isOpen, onClose }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -42,7 +44,14 @@ export default function Navbar() {
       >
         {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-3/4 bg-[#1A56DB] rounded-r-full" />}
         <Icon size={18} className={`shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-blue-400' : 'text-slate-500 group-hover:text-white'}`} />
-        {label}
+        <span className="flex-1 flex items-center justify-between">
+          {label}
+          {NAV_ITEMS.find(n => n.to === to)?.badge && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 font-bold tracking-wider mr-2 uppercase">
+              {NAV_ITEMS.find(n => n.to === to).badge}
+            </span>
+          )}
+        </span>
         <ChevronRight size={14} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-slate-500" />
       </Link>
     );
@@ -55,7 +64,16 @@ export default function Navbar() {
   if (complianceScore > 80) healthColor = 'bg-emerald-500';
 
   return (
-    <nav className="fixed left-0 top-0 h-screen w-[260px] bg-[#0A1628] border-r border-slate-800/80 flex flex-col z-50 select-none">
+    <>
+      {/* Overlay for mobile */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[55] lg:hidden animate-in fade-in duration-300" 
+          onClick={onClose}
+        />
+      )}
+
+      <nav className={`fixed left-0 top-0 h-screen w-[260px] bg-[#0A1628] border-r border-slate-800/80 flex flex-col z-[60] select-none transition-transform duration-300 ease-in-out lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
 
       {/* ── Brand ─────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 px-6 py-7 border-b border-slate-800">
@@ -118,5 +136,6 @@ export default function Navbar() {
         </button>
       </div>
     </nav>
+    </>
   );
 }

@@ -4,11 +4,13 @@ import { ShieldCheck, ArrowRight, Building, CheckCircle2 } from 'lucide-react';
 import { Button } from '../components/ui';
 import { useAuth } from '../App';
 import api from '../api';
+import { useToast } from '../hooks/useToast';
 
 export default function Signup() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { showToast } = useToast();
 
   // Step 1
   const [businessName, setBusinessName] = useState('');
@@ -27,7 +29,7 @@ export default function Signup() {
   const handleNext = (e) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      showToast("Passwords do not match", "warning");
       return;
     }
     setError('');
@@ -50,7 +52,7 @@ export default function Signup() {
       login(response.data.user, response.data.token);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Signup failed');
+      showToast(err.response?.data?.detail || 'Signup failed', "error");
     } finally {
       setLoading(false);
     }

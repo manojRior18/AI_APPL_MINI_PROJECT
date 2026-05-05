@@ -4,6 +4,7 @@ import { CheckCircle2, ShieldCheck } from 'lucide-react';
 import { Button } from '../components/ui';
 import { useAuth } from '../App';
 import api from '../api';
+import { useToast } from '../hooks/useToast';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -11,6 +12,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
+  const { showToast } = useToast();
   
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -25,7 +27,7 @@ export default function Login() {
       login(response.data.user, response.data.token);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Invalid email or password');
+      showToast(err.response?.data?.detail || 'Invalid email or password', "error");
       setShake(true);
       setTimeout(() => setShake(false), 500);
     } finally {

@@ -126,6 +126,30 @@ npm run dev
 
 ---
 
+## 🔌 TallyPrime Integration
+
+The application supports direct export of reconciled invoices to TallyPrime via its local XML API.
+
+### Setup Instructions:
+1. **Open TallyPrime** on your computer.
+2. Go to **F12: Configure** > **Advanced Configuration**.
+3. Set **Enable ODBC Server** to `Yes`.
+4. Set **Port** to `9000` (default).
+5. Open the company you want to export data to.
+6. In GST Helper AI, go to the **Tally Export** page.
+7. Enter `http://localhost:9000` and click **Test Connection**.
+8. Select your company and start pushing invoices!
+
+---
+
+## 🚀 Demo Preparation
+1. Run `python backend/seed.py` to populate the database with demo data.
+2. Login with:
+   - **Email**: `demo@khannatextile.com`
+   - **Password**: `Demo@1234`
+
+---
+
 ## 👥 Team
 
 - 7 -member development team  

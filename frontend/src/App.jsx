@@ -9,6 +9,10 @@ import Report from './pages/Report';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Settings from './pages/Settings';
+import TallyExport from './pages/TallyExport';
+import ChatAssistant from './components/ChatAssistant';
+import FilingCalendar from './pages/Calendar';
+import { ToastProvider } from './components/ui/Toast';
 
 // ── Auth Context ───────────────────────────────────────────────────────────────
 export const AuthContext = createContext(null);
@@ -45,31 +49,41 @@ export default function App() {
     localStorage.removeItem('gst_token');
   };
 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
 
+  useEffect(() => {
+    setIsSidebarOpen(false); // Close on route change
+  }, [location.pathname]);
+
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
-      <div className="flex min-h-screen bg-[#F0F4F8] font-body">
-        {!isAuthPage && user && <Navbar />}
+    <ToastProvider>
+      <AuthContext.Provider value={{ user, login, logout }}>
+        <div className="flex min-h-screen bg-[#F0F4F8] font-body relative">
+          {!isAuthPage && user && <Navbar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />}
 
-        <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${!isAuthPage && user ? 'ml-64' : ''}`}>
-          {!isAuthPage && user && <Header />}
+          <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${!isAuthPage && user ? 'lg:ml-64' : ''}`}>
+            {!isAuthPage && user && <Header onMenuClick={() => setIsSidebarOpen(true)} />}
 
-          <main className={`flex-1 flex flex-col ${isAuthPage ? '' : 'p-8 pb-0'}`}>
-            <div className="flex-1">
-              <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<Signup />} />
-                <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
-                <Route path="/reports" element={<ProtectedRoute><Report /></ProtectedRoute>} />
-                <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-              </Routes>
-            </div>
-            {!isAuthPage && user && <Footer />}
-          </main>
+            <main className={`flex-1 flex flex-col ${isAuthPage ? '' : 'p-8 pb-0'}`}>
+              <div className="flex-1">
+                <Routes>
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<Signup />} />
+                  <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                  <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
+                  <Route path="/reports" element={<ProtectedRoute><Report /></ProtectedRoute>} />
+                  <Route path="/tally" element={<ProtectedRoute><TallyExport /></ProtectedRoute>} />
+                  <Route path="/calendar" element={<ProtectedRoute><FilingCalendar /></ProtectedRoute>} />
+                  <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+                </Routes>
+              </div>
+              {!isAuthPage && user && <Footer />}
+            </main>
+          </div>
+          {!isAuthPage && user && <ChatAssistant />}
         </div>
-      </div>
-    </AuthContext.Provider>
+      </AuthContext.Provider>
+    </ToastProvider>
   );
 }

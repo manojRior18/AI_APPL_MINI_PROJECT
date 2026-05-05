@@ -47,6 +47,7 @@ class Invoice(Base):
     raw_text = Column(String, nullable=True)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
     user_id = Column(Integer, nullable=True)
+    tally_status = Column(String, default="Not Exported")
 
 
 class ReconciliationLog(Base):
@@ -115,6 +116,7 @@ class InvoiceOut(BaseModel):
     confidence_score: float
     uploaded_at: Optional[str] = None
     raw_text: Optional[str] = None
+    tally_status: Optional[str] = None
 
     class Config:
         from_attributes = True

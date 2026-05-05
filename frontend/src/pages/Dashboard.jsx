@@ -1,26 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, ArrowDownRight, FileText, CheckCircle2, AlertCircle, Clock, AlertTriangle } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, FileText, CheckCircle2, AlertCircle, Clock, AlertTriangle, Plug } from 'lucide-react';
 import api from '../api';
 import { Card, Badge, Skeleton, EmptyState, Button } from '../components/ui';
+import { useToast } from '../hooks/useToast';
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [analytics, setAnalytics] = useState(null);
+  const [tallyStatus, setTallyStatus] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [dashRes, analRes] = await Promise.all([
+        const [dashRes, analRes, tallyRes] = await Promise.all([
           api.get('/dashboard'),
-          api.get('/analytics')
+          api.get('/analytics'),
+          api.get('/tally/status')
         ]);
-        setData(dashRes.data);
-        setAnalytics(analRes.data);
-        localStorage.setItem('gst_compliance_score', dashRes.data.compliance_score);
+        setData(dashRes?.data);
+        setAnalytics(analRes?.data);
+        setTallyStatus(tallyRes?.data);
+        if (dashRes?.data?.compliance_score !== undefined) {
+          localStorage.setItem('gst_compliance_score', dashRes.data.compliance_score);
+        }
       } catch (err) {
-        console.error(err);
+        console.error("Dashboard data fetch error:", err);
+        setError("Failed to load dashboard data. Please check your backend connection.");
+        showToast("Error loading dashboard", "error");
       } finally {
         setLoading(false);
       }
@@ -39,6 +49,21 @@ export default function Dashboard() {
           <div className="col-span-4"><Skeleton height="320px" rounded="lg" /></div>
           <div className="col-span-8"><Skeleton height="320px" rounded="lg" /></div>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[70vh] gap-4">
+        <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center text-rose-500">
+          <AlertCircle size={32} />
+        </div>
+        <div className="text-center">
+          <h3 className="text-lg font-bold text-slate-800">Connection Failed</h3>
+          <p className="text-sm text-slate-500">{error}</p>
+        </div>
+        <Button onClick={() => window.location.reload()}>Retry Connection</Button>
       </div>
     );
   }
@@ -63,7 +88,24 @@ export default function Dashboard() {
       </div>
 
       {/* ── KPI ROW ──────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card hover padding="none" className="p-5 flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <Plug size={20}/>
+            </div>
+            <div className={`w-2.5 h-2.5 rounded-full ${localStorage.getItem('gst_tally_connected') === 'true' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
+          </div>
+          <div className="mt-4 cursor-pointer" onClick={() => window.location.href='/tally'}>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tally Sync</p>
+            <p className="text-2xl font-extrabold text-slate-900 mt-1">
+              {tallyStatus?.status_counts?.Exported || 0} <span className="text-sm text-slate-400 font-medium">/ {d.total_invoices}</span>
+            </p>
+            <p className="text-[10px] font-bold text-slate-400 mt-1 truncate">
+              {localStorage.getItem('gst_tally_connected') === 'true' ? 'Connected' : 'Disconnected'}
+            </p>
+          </div>
+        </Card>
         <Card hover padding="none" className="p-5 flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><FileText size={20}/></div>

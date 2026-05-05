@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
+from pydantic import BaseModel
 
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Header, Query, Request, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +24,7 @@ import pandas as pd
 import portal_record
 from export import export_excel
 from dotenv import load_dotenv
+from tally_routes import router as tally_router
 
 load_dotenv()
 
@@ -39,21 +41,9 @@ api_router = APIRouter(prefix="/api")
 
 
 
-# Parse ALLOWED_ORIGINS
-allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
-allowed_origins = [o.strip() for o in allowed_origins_str.split(",")]
-
-# Add regex support for ngrok domains (useful for demo)
-class NgrokCORSMiddleware(CORSMiddleware):
-    def is_allowed_origin(self, origin: str) -> bool:
-        if super().is_allowed_origin(origin):
-            return True
-        return ".ngrok.io" in origin or ".ngrok-free.app" in origin or ".loca.lt" in origin
-
-
 app.add_middleware(
-    NgrokCORSMiddleware,
-    allow_origins=allowed_origins,
+    CORSMiddleware,
+    allow_origins=["*"],        # ngrok URL changes each session — allow all
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -108,6 +98,40 @@ def log_audit(db: Session, action: str, invoice_id: Optional[int] = None, user_i
     db.add(log_entry)
     db.commit()
 
+class ChatRequest(BaseModel):
+    message: str
+    context: Optional[dict] = None
+
+@api_router.post("/chat", tags=["AI Assistant"])
+async def chat_assistant(req: ChatRequest):
+    msg = req.message.lower()
+    ctx = req.context or {}
+    
+    prefix = ""
+    mismatches = ctx.get("mismatch_count", 0)
+    score = ctx.get("compliance_score", 100)
+    
+    if mismatches > 0:
+        prefix = f"I see you have {mismatches} mismatches. These are typically caused by missing invoices in the portal or data entry errors in your books. "
+    elif score < 70:
+        prefix = f"Your compliance score is {score}%. Here's how to improve it: ensure timely filing and accurate reconciliation. "
+        
+    responses = {
+        "what is gstr-1": "GSTR-1 is a monthly or quarterly return that summarizes all sales (outward supplies) made by a business. For monthly filers, the deadline is the 11th of the following month.",
+        "mismatch": "Mismatches happen when the data in your purchase register doesn't match the GSTR-2B/2A data uploaded by your suppliers. Common reasons include missing invoices, incorrect GSTINs, or value discrepancies.",
+        "itc": "Input Tax Credit (ITC) allows you to reduce the tax you've already paid on inputs from your output tax liability. To claim ITC, you must have a valid tax invoice and the supplier must have filed their GSTR-1.",
+        "e-invoice": "E-invoicing is mandatory for businesses with an aggregate turnover exceeding ₹5 Crores. It involves reporting B2B invoices to the Invoice Registration Portal (IRP) to generate a unique IRN and QR code.",
+        "late fee": "Late filing of GSTR-1 attracts a penalty of ₹50 per day (₹20 for NIL returns), capped at specific limits based on turnover.",
+        "hsn": "Harmonized System of Nomenclature (HSN) codes are mandatory. Turnover < ₹5Cr needs 4 digits (B2B), and > ₹5Cr needs 6 digits for all invoices.",
+        "reconcil": "GSTR-2B reconciliation is the process of matching your internal purchase records with the auto-generated GSTR-2B from the portal to ensure you only claim valid ITC."
+    }
+    
+    for key, val in responses.items():
+        if key in msg:
+            return {"reply": prefix + val}
+            
+    return {"reply": prefix + "I can help with GST queries. Try asking about: GSTR-1 filing, ITC claims, e-invoicing, HSN codes, or reconciliation."}
+
 # ─── Auth Routes ───────────────────────────────────────────────────────────────
 
 @api_router.post("/auth/signup", tags=["Auth"])
@@ -159,104 +183,279 @@ async def login(credentials: models.UserLogin, request: Request, db: Session = D
         }
     }
 
+@api_router.get("/export/gstr1", tags=["Exports"])
+async def export_gstr1(
+    month: int = Query(...), 
+    year: int = Query(...), 
+    format: str = Query("json", enum=["json", "excel"]),
+    db: Session = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user)
+):
+    user_id = current_user["user_id"] if current_user else None
+    period = f"{month:02d}{year}" # MMYYYY
+    
+    # Filter sales invoices for the given period
+    invoices = db.query(models.Invoice).filter(
+        models.Invoice.invoice_type == "sales",
+        models.Invoice.user_id == user_id,
+        models.Invoice.status.in_(["Matched", "Pending"])
+    ).all()
+    
+    # Filter by period
+    # Handle cases where filing_period is null but date is available
+    matched_invoices = []
+    for inv in invoices:
+        if inv.filing_period == period:
+            matched_invoices.append(inv)
+        elif inv.date:
+            try:
+                # Expecting YYYY-MM-DD or DD-MM-YYYY
+                d_str = inv.date.replace("/", "-")
+                if d_str[2] == "-": # DD-MM-YYYY
+                    d_period = d_str[3:5] + d_str[6:10]
+                else: # YYYY-MM-DD
+                    d_period = d_str[5:7] + d_str[0:4]
+                if d_period == period:
+                    matched_invoices.append(inv)
+            except:
+                continue
+    
+    invoices = matched_invoices
+    
+    b2b = []
+    b2cs = []
+    b2cl = []
+    
+    for inv in invoices:
+        total = inv.total_amount or 0
+        taxable = inv.taxable_value or 0
+        cgst = inv.cgst_amount or 0
+        sgst = inv.sgst_amount or 0
+        igst = inv.igst_amount or 0
+        pos = inv.place_of_supply or "27"
+        
+        inv_data = {
+            "inum": inv.invoice_number,
+            "idt": inv.date or datetime.now().strftime("%d-%m-%Y"),
+            "val": total,
+            "pos": pos,
+            "rchrg": "N",
+            "itms": [{
+                "num": 1,
+                "itm_det": {
+                    "txval": taxable,
+                    "rt": 18,
+                    "camt": cgst,
+                    "samt": sgst,
+                    "iamt": igst,
+                    "csamt": 0
+                }
+            }]
+        }
+        
+        if inv.buyer_gstin and len(inv.buyer_gstin) == 15:
+            found = False
+            for entry in b2b:
+                if entry["ctin"] == inv.buyer_gstin:
+                    entry["inv"].append(inv_data)
+                    found = True
+                    break
+            if not found:
+                b2b.append({"ctin": inv.buyer_gstin, "inv": [inv_data]})
+        else:
+            if total > 250000:
+                b2cl.append(inv_data)
+            else:
+                b2cs.append({
+                    "pos": pos,
+                    "txval": taxable,
+                    "rt": 18,
+                    "iamt": igst,
+                    "camt": cgst,
+                    "samt": sgst,
+                    "csamt": 0
+                })
+
+    user_gstin = "27AAAAA0000A1Z5"
+    if current_user:
+        user_obj = db.query(models.User).filter(models.User.id == user_id).first()
+        if user_obj: user_gstin = user_obj.gstin
+
+    gstr1_json = {
+        "gstin": user_gstin,
+        "fp": period,
+        "b2b": b2b,
+        "b2cl": b2cl,
+        "b2cs": b2cs,
+        "cdnr": []
+    }
+
+    if format == "json":
+        return gstr1_json
+    else:
+        file_name = f"GSTR1_Draft_{period}_{int(time.time())}.xlsx"
+        file_path = REPORTS_DIR / file_name
+        
+        b2b_flat = []
+        for c in b2b:
+            for i in c["inv"]:
+                b2b_flat.append({
+                    "Recipient GSTIN": c["ctin"],
+                    "Invoice Number": i["inum"],
+                    "Invoice Date": i["idt"],
+                    "Invoice Value": i["val"],
+                    "Place of Supply": i["pos"],
+                    "Taxable Value": i["itms"][0]["itm_det"]["txval"],
+                    "CGST": i["itms"][0]["itm_det"]["camt"],
+                    "SGST": i["itms"][0]["itm_det"]["samt"],
+                    "IGST": i["itms"][0]["itm_det"]["iamt"]
+                })
+        
+        df_b2b = pd.DataFrame(b2b_flat) if b2b_flat else pd.DataFrame(columns=["Recipient GSTIN", "Invoice Number"])
+        df_b2cs = pd.DataFrame(b2cs) if b2cs else pd.DataFrame(columns=["pos", "txval"])
+        df_summary = pd.DataFrame([{
+            "Filing Period": period,
+            "Total Invoices": len(invoices),
+            "B2B Count": sum(len(c["inv"]) for c in b2b),
+            "B2CS Count": len(b2cs),
+            "Total Taxable Value": sum(i.taxable_value for i in invoices),
+            "Total Tax": sum(i.tax_amount for i in invoices)
+        }])
+        
+        with pd.ExcelWriter(file_path) as writer:
+            df_b2b.to_excel(writer, sheet_name="B2B", index=False)
+            df_b2cs.to_excel(writer, sheet_name="B2CS", index=False)
+            df_summary.to_excel(writer, sheet_name="Summary", index=False)
+            
+        return FileResponse(file_path, filename=file_name, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 # ─── Upload & OCR Routes ───────────────────────────────────────────────────────
 
 @api_router.post("/upload", tags=["Invoices"])
 async def upload_invoice(
     request: Request,
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     invoice_type: str = Query("purchase", enum=["purchase", "sales"]),
     db: Session = Depends(get_db),
     current_user: Optional[dict] = Depends(get_current_user),
 ):
-    # File size limit check (approx by reading to end and returning)
-    file.file.seek(0, 2)
-    file_size = file.file.tell()
-    file.file.seek(0)
+    results = []
+    processed_count = 0
     
-    if file_size > MAX_FILE_SIZE:
-        raise HTTPException(status_code=413, detail="File too large. Max size is 20MB.")
+    for file in files:
+        try:
+            # File size limit check
+            file.file.seek(0, 2)
+            file_size = file.file.tell()
+            file.file.seek(0)
+            
+            if file_size > MAX_FILE_SIZE:
+                results.append({"filename": file.filename, "success": False, "error": "File too large (Max 20MB)"})
+                continue
 
-    ext = Path(file.filename).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File type '{ext}' not supported. Allowed: {ALLOWED_EXTENSIONS}"
-        )
+            ext = Path(file.filename).suffix.lower()
+            if ext not in ALLOWED_EXTENSIONS:
+                results.append({"filename": file.filename, "success": False, "error": f"Unsupported extension: {ext}"})
+                continue
 
-    safe_name = f"{os.urandom(8).hex()}_{file.filename}"
-    file_path = UPLOAD_DIR / safe_name
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+            safe_name = f"{os.urandom(8).hex()}_{file.filename}"
+            file_path = UPLOAD_DIR / safe_name
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
 
-    raw_text = ocr.extract_text(str(file_path)).get("text", "")
-    data = extract.parse_invoice_data(raw_text)
-    data["invoice_type"] = invoice_type
+            raw_text = ocr.extract_text(str(file_path)).get("text", "")
+            data = extract.parse_invoice_data(raw_text)
+            data["invoice_type"] = invoice_type
 
-    val_results = validation.validate_gst_data(data)
-    data["confidence_score"] = val_results.get("confidence_score", 0.0)
-    
-    # Check for duplicates
-    inv_num = data.get("invoice_number")
-    supp_gstin = data.get("supplier_gstin")
-    
-    if inv_num and supp_gstin and inv_num != "UNKNOWN" and supp_gstin != "NOT_FOUND":
-        duplicate = db.query(models.Invoice).filter(
-            models.Invoice.invoice_number == inv_num,
-            models.Invoice.supplier_gstin == supp_gstin
-        ).first()
-        
-        if duplicate:
-            # os.remove(file_path)
-            # raise HTTPException(
-            #     status_code=409, 
-            #     detail=f"Duplicate invoice detected: {inv_num} from {supp_gstin} already exists."
-            # )
-            pass # Allow duplicates for demo purposes
+            val_results = validation.validate_gst_data(data)
+            data["confidence_score"] = val_results.get("confidence_score", 0.0)
+            
+            inv_num = data.get("invoice_number")
+            supp_gstin = data.get("supplier_gstin")
 
+            new_inv = models.Invoice(
+                filename=safe_name,
+                invoice_number=inv_num,
+                gstin=supp_gstin,
+                supplier_gstin=supp_gstin,
+                buyer_gstin=data.get("buyer_gstin"),
+                vendor_name=data.get("vendor_name"),
+                hsn_code=data.get("hsn_code"),
+                place_of_supply=data.get("place_of_supply"),
+                date=data.get("date"),
+                taxable_value=data.get("taxable_value", 0.0),
+                tax_amount=data.get("tax_amount", 0.0),
+                cgst_amount=data.get("cgst_amount", 0.0),
+                sgst_amount=data.get("sgst_amount", 0.0),
+                igst_amount=data.get("igst_amount", 0.0),
+                total_amount=data.get("total_amount", 0.0),
+                filing_period=data.get("filing_period"),
+                ocr_engine_used="paddle",
+                invoice_type=data["invoice_type"],
+                status=data.get("status", "Pending"),
+                confidence_score=data["confidence_score"],
+                raw_text=raw_text[:5000],
+                user_id=current_user["user_id"] if current_user else None,
+            )
+            db.add(new_inv)
+            db.commit()
+            db.refresh(new_inv)
 
-    new_inv = models.Invoice(
-        filename=safe_name,
-        invoice_number=inv_num,
-        gstin=supp_gstin, # legacy compat
-        supplier_gstin=supp_gstin,
-        buyer_gstin=data.get("buyer_gstin"),
-        vendor_name=data.get("vendor_name"),
-        hsn_code=data.get("hsn_code"),
-        place_of_supply=data.get("place_of_supply"),
-        date=data.get("date"),
-        taxable_value=data.get("taxable_value", 0.0),
-        tax_amount=data.get("tax_amount", 0.0),
-        cgst_amount=data.get("cgst_amount", 0.0),
-        sgst_amount=data.get("sgst_amount", 0.0),
-        igst_amount=data.get("igst_amount", 0.0),
-        total_amount=data.get("total_amount", 0.0),
-        filing_period=data.get("filing_period"),
-        ocr_engine_used="paddle",
-        invoice_type=data["invoice_type"],
-        status=data.get("status", "Pending"),
-        confidence_score=data["confidence_score"],
-        raw_text=raw_text[:5000],
-        user_id=current_user["user_id"] if current_user else None,
-    )
-    db.add(new_inv)
-    db.commit()
-    db.refresh(new_inv)
-
-    log_audit(
-        db, "UPLOAD", invoice_id=new_inv.id, 
-        user_id=current_user["user_id"] if current_user else None, 
-        details=f"Uploaded {file.filename}", 
-        ip_address=request.client.host
-    )
+            log_audit(
+                db, "UPLOAD", invoice_id=new_inv.id, 
+                user_id=current_user["user_id"] if current_user else None, 
+                details=f"Uploaded {file.filename}", 
+                ip_address=request.client.host
+            )
+            
+            results.append({
+                "filename": file.filename,
+                "success": True,
+                "invoice_id": new_inv.id,
+                "data": data,
+                "validation": val_results
+            })
+            processed_count += 1
+            
+        except Exception as e:
+            results.append({"filename": file.filename, "success": False, "error": str(e)})
 
     return {
-        "message": "Invoice processed successfully.",
-        "invoice_id": new_inv.id,
-        "data": data,
-        "validation": val_results,
-        "raw_text_preview": raw_text[:500] if raw_text else "",
+        "processed": processed_count,
+        "total": len(files),
+        "results": results
     }
+
+@api_router.get("/invoices/duplicates", tags=["Invoices"])
+async def get_duplicate_invoices(db: Session = Depends(get_db), current_user: Optional[dict] = Depends(get_current_user)):
+    user_id = current_user["user_id"] if current_user else None
+    invoices = db.query(models.Invoice).filter(models.Invoice.user_id == user_id).all()
+    
+    groups = {}
+    for inv in invoices:
+        if not inv.invoice_number or inv.invoice_number == "UNKNOWN": continue
+        key = (inv.invoice_number, inv.supplier_gstin)
+        if key not in groups: groups[key] = []
+        groups[key].append(inv)
+        
+    duplicates = []
+    for key, items in groups.items():
+        if len(items) > 1:
+            duplicates.append({
+                "invoice_number": key[0],
+                "supplier_gstin": key[1],
+                "count": len(items),
+                "items": [
+                    {
+                        "id": i.id,
+                        "date": i.date,
+                        "total_amount": i.total_amount,
+                        "uploaded_at": str(i.uploaded_at)
+                    } for i in items
+                ]
+            })
+            
+    return duplicates
 
 
 @api_router.get("/invoices", tags=["Invoices"])
@@ -556,6 +755,7 @@ async def export_report(request: Request, db: Session = Depends(get_db), current
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
+api_router.include_router(tally_router)
 app.include_router(api_router)
 
 # Mount static files (must be after all other routes)
